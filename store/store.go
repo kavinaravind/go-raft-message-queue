@@ -63,6 +63,7 @@ func (s *Store[T]) Initialize(config *consensus.Config) error {
 	return nil
 }
 
+// Send is used to enqueue a message into the queue
 func (s *Store[T]) Send(data T) error {
 	if s.raft.State() != raft.Leader {
 		return errors.New("not the leader")
@@ -78,6 +79,7 @@ func (s *Store[T]) Send(data T) error {
 	return future.Error()
 }
 
+// Recieve is used to dequeue a message from the queue
 func (s *Store[T]) Recieve() (*ds.Message[T], error) {
 	if s.raft.State() != raft.Leader {
 		return nil, errors.New("not the leader")
@@ -96,39 +98,50 @@ func (s *Store[T]) Recieve() (*ds.Message[T], error) {
 		return nil, err
 	}
 
-	response, ok := future.Response().(ds.Message[T])
-	if !ok {
-		return nil, fmt.Errorf("failed to get response")
+	switch response := future.Response().(type) {
+	case error:
+		// The Apply method returned an error
+		return nil, response
+	case *ds.Message[T]:
+		// The Apply method returned a message
+		return response, nil
+	case nil:
+		// The Apply method returned nil
+		return nil, nil
+	default:
+		// The Apply method returned an unexpected type
+		return nil, fmt.Errorf("unexpected response type: %T", response)
 	}
+}
 
-	return &response, nil
-
+func (s *Store[T]) Stats() map[string]string {
+	return s.raft.Stats()
 }
 
 // implement the raft fsm interface
 
 // Apply is used to apply a log entry to the store
-func (s *Store[T]) Apply(log *raft.Log) (interface{}, error) {
+func (s *Store[T]) Apply(log *raft.Log) interface{} {
 	var command command[T]
 	err := json.Unmarshal(log.Data, &command)
 	if err != nil {
 		s.logger.Error("failed to unmarshal message", "error", err)
-		return nil, err
+		return err
 	}
 
 	switch command.Operation {
 	case Send:
 		s.queue.Enqueue(command.Message)
-		return nil, nil
+		return nil
 	case Recieve:
 		val, ok := s.queue.Dequeue()
 		if !ok {
 			s.logger.Error("failed to dequeue message")
-			return nil, fmt.Errorf("failed to dequeue message")
+			return fmt.Errorf("failed to dequeue message")
 		}
-		return val, nil
+		return val
 	default:
-		return nil, fmt.Errorf("unknown operation: %v", command.Operation)
+		return fmt.Errorf("unknown operation: %v", command.Operation)
 	}
 }
 

@@ -35,7 +35,7 @@ func init() {
 	// Concensus Specific Flags
 	flag.StringVar(&conf.Concensus.ServerID, "id", "", "")
 	flag.StringVar(&conf.Concensus.Address, "raddr", "localhost", "")
-	flag.StringVar(&conf.Concensus.Base, "join", "", "")
+	flag.StringVar(&conf.Concensus.BaseDirectory, "join", "", "")
 
 	// Server Specific Flags
 	flag.StringVar(&conf.Server.Address, "haddr", "", "")

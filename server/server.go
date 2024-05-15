@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
@@ -40,6 +41,9 @@ func (s *Server) Intitiliaze(ctx context.Context, conf *Config) {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/send", s.handleSend)
+	mux.HandleFunc("/recieve", s.handleRecieve)
+	mux.HandleFunc("/stats", s.handleStats)
+	mux.HandleFunc("/join", s.handleJoin)
 
 	s.httpServer = &http.Server{
 		Addr:    conf.Address,
@@ -62,17 +66,96 @@ func (s *Server) Intitiliaze(ctx context.Context, conf *Config) {
 }
 
 func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var message model.Comment
+	if err := json.NewDecoder(r.Body).Decode(&message); err != nil {
+		http.Error(w, "Failed to decode message", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.store.Send(message); err != nil {
+		http.Error(w, "Failed to send message", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+
+}
+
+func (s *Server) handleRecieve(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
 
+	message, err := s.store.Recieve()
+	if err != nil {
+		http.Error(w, "Failed to recieve message", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	err = json.NewEncoder(w).Encode(message)
+	if err != nil {
+		http.Error(w, "Failed to encode message", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
-func (s *Server) handleRecieve(w http.ResponseWriter, r *http.Request) {
-	// handle recieve
+func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
+	stats := s.store.Stats()
+
+	w.Header().Set("Content-Type", "application/json")
+
+	err := json.NewEncoder(w).Encode(stats)
+	if err != nil {
+		http.Error(w, "Failed to encode message", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
-func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	// handle health
+func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	body := map[string]string{}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Failed to decode body", http.StatusBadRequest)
+		return
+	}
+
+	if len(body) != 2 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	remoteAddress, ok := body["address"]
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	nodeID, ok := body["id"]
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if err := s.store.Join(nodeID, remoteAddress); err != nil {
+		http.Error(w, "Failed to join cluster", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
 }
