@@ -9,36 +9,32 @@ import (
 	raftmdb "github.com/hashicorp/raft-mdb"
 )
 
-type consensusConfig struct {
-	localID string
-	base    string
-	address string
+type Config struct {
+	ServerID string
+	Base     string
+	Address  string
 }
 
-func NewRaftConfig(localID, base, address string) *consensusConfig {
-	return &consensusConfig{
-		localID: localID,
-		base:    base,
-		address: address,
-	}
+func NewConsensusConfig() *Config {
+	return &Config{}
 }
 
-func NewRaft(fsm raft.FSM, c *consensusConfig) (*raft.Raft, error) {
+func NewRaft(fsm raft.FSM, c *Config) (*raft.Raft, error) {
 	config := raft.DefaultConfig()
-	config.LocalID = raft.ServerID(c.localID)
+	config.LocalID = raft.ServerID(c.ServerID)
 
-	store, err := raftmdb.NewMDBStore(c.base)
+	store, err := raftmdb.NewMDBStore(c.Base)
 	if err != nil {
 		return nil, err
 	}
 	logStore, stableStore := store, store
 
-	snapshotStore, err := newRaftFileSnapshotStore(c.base)
+	snapshotStore, err := newRaftFileSnapshotStore(c.Base)
 	if err != nil {
 		return nil, err
 	}
 
-	transport, err := newRaftTCPTransport("", c.address)
+	transport, err := newRaftTCPTransport("", c.Address)
 	if err != nil {
 		return nil, err
 	}
