@@ -3,8 +3,11 @@ package store
 import (
 	"encoding/gob"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"log/slog"
+	"time"
 
 	"github.com/hashicorp/raft"
 	"github.com/kavinaravind/go-raft-message-queue/consensus"
@@ -15,6 +18,18 @@ const (
 	Send = iota
 	Recieve
 )
+
+type command[T any] struct {
+	Operation int           `json:"operation,omitempty"`
+	Message   ds.Message[T] `json:"message,omitempty"`
+}
+
+func newCommand[T any](operation int, message ds.Message[T]) *command[T] {
+	return &command[T]{
+		Operation: operation,
+		Message:   message,
+	}
+}
 
 type Store[T any] struct {
 	// ds that will be distributed across each node
@@ -48,25 +63,73 @@ func (s *Store[T]) Initialize(config *consensus.Config) error {
 	return nil
 }
 
+func (s *Store[T]) Send(data T) error {
+	if s.raft.State() != raft.Leader {
+		return errors.New("not the leader")
+	}
+
+	c := newCommand[T](Send, ds.Message[T]{Data: data})
+	bytes, err := json.Marshal(c)
+	if err != nil {
+		return err
+	}
+
+	future := s.raft.Apply(bytes, 10*time.Second)
+	return future.Error()
+}
+
+func (s *Store[T]) Recieve() (*ds.Message[T], error) {
+	if s.raft.State() != raft.Leader {
+		return nil, errors.New("not the leader")
+	}
+
+	c := newCommand[T](Recieve, ds.Message[T]{})
+	bytes, err := json.Marshal(c)
+	if err != nil {
+		s.logger.Error("failed to marshal message", "error", err)
+		return nil, err
+	}
+
+	future := s.raft.Apply(bytes, 10*time.Second)
+	if err := future.Error(); err != nil {
+		s.logger.Error("failed to apply message", "error", err)
+		return nil, err
+	}
+
+	response, ok := future.Response().(ds.Message[T])
+	if !ok {
+		return nil, fmt.Errorf("failed to get response")
+	}
+
+	return &response, nil
+
+}
+
 // implement the raft fsm interface
 
 // Apply is used to apply a log entry to the store
-func (s *Store[T]) Apply(log *raft.Log) interface{} {
-	var message ds.Message[T]
-	err := json.Unmarshal(log.Data, &message)
+func (s *Store[T]) Apply(log *raft.Log) (interface{}, error) {
+	var command command[T]
+	err := json.Unmarshal(log.Data, &command)
 	if err != nil {
 		s.logger.Error("failed to unmarshal message", "error", err)
-		return false
+		return nil, err
 	}
 
-	switch message.Data.(type) {
+	switch command.Operation {
 	case Send:
-		s.queue.Enqueue(message)
+		s.queue.Enqueue(command.Message)
+		return nil, nil
 	case Recieve:
-		s.queue.Dequeue()
+		val, ok := s.queue.Dequeue()
+		if !ok {
+			s.logger.Error("failed to dequeue message")
+			return nil, fmt.Errorf("failed to dequeue message")
+		}
+		return val, nil
+	default:
+		return nil, fmt.Errorf("unknown operation: %v", command.Operation)
 	}
-
-	return nil
 }
 
 // Snapshot is used to create a snapshot of the store

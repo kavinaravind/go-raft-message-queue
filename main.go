@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -66,6 +67,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create a context with cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Create a new instance of the server
+	server := server.NewServer(store, logger)
+
+	// Intitiliaze the server
+	server.Intitiliaze(ctx, conf.Server)
+
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-sigs
@@ -75,4 +85,10 @@ func main() {
 	case syscall.SIGTERM:
 		logger.Info("Received SIGTERM, shutting down")
 	}
+
+	logger.Info("Shutting down server")
+
+	// Cancel the context to stop the HTTP server
+	cancel()
+
 }

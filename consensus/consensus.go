@@ -10,9 +10,9 @@ import (
 )
 
 type Config struct {
-	ServerID string
-	Base     string
-	Address  string
+	ServerID      string
+	BaseDirectory string
+	Address       string
 }
 
 // NewConsensusConfig creates a new consensus config
@@ -25,13 +25,13 @@ func NewRaft(fsm raft.FSM, c *Config) (*raft.Raft, error) {
 	config := raft.DefaultConfig()
 	config.LocalID = raft.ServerID(c.ServerID)
 
-	store, err := raftmdb.NewMDBStore(c.Base)
+	store, err := raftmdb.NewMDBStore(c.BaseDirectory)
 	if err != nil {
 		return nil, err
 	}
 	logStore, stableStore := store, store
 
-	snapshotStore, err := raft.NewFileSnapshotStore(c.Base, 2, os.Stderr)
+	snapshotStore, err := raft.NewFileSnapshotStore(c.BaseDirectory, 2, os.Stderr)
 	if err != nil {
 		return nil, err
 	}
@@ -46,4 +46,27 @@ func NewRaft(fsm raft.FSM, c *Config) (*raft.Raft, error) {
 	}
 
 	return raft.NewRaft(config, fsm, logStore, stableStore, snapshotStore, transport)
+}
+
+// Join joins the raft cluster
+func Join(raft *raft.Raft, address string) error {
+	configFuture := raft.GetConfiguration()
+	if err := configFuture.Error(); err != nil {
+		return err
+	}
+
+	for _, server := range configFuture.Configuration().Servers {
+		if server.ID == raft.ID() {
+			if server.Address == raft.ServerAddress() {
+				return nil
+			}
+		}
+	}
+
+	f := raft.AddVoter(raft.ServerID(), raft.ServerAddress(), 0, 0)
+	if err := f.Error(); err != nil {
+		return err
+	}
+
+	return nil
 }
