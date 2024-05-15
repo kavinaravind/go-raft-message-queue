@@ -83,7 +83,6 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
-
 }
 
 func (s *Server) handleRecieve(w http.ResponseWriter, r *http.Request) {

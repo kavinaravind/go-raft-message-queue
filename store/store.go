@@ -54,10 +54,21 @@ func NewStore[T any](logger *slog.Logger) *Store[T] {
 func (s *Store[T]) Initialize(config *consensus.Config) error {
 	s.logger.Info("Initializing store")
 
+	configuration := raft.Configuration{
+		Servers: []raft.Server{
+			{
+				ID:      raft.ServerID(config.ServerID),
+				Address: raft.ServerAddress(config.Address),
+			},
+		},
+	}
+
 	raft, err := consensus.NewRaft(s, config)
 	if err != nil {
 		return err
 	}
+
+	raft.BootstrapCluster(configuration)
 
 	s.raft = raft
 
@@ -93,6 +104,8 @@ func (s *Store[T]) Recieve() (*ds.Message[T], error) {
 		return nil, err
 	}
 
+	s.logger.Info("sending message", "message", c)
+
 	future := s.raft.Apply(bytes, 10*time.Second)
 	if err := future.Error(); err != nil {
 		s.logger.Error("failed to apply message", "error", err)
@@ -103,9 +116,10 @@ func (s *Store[T]) Recieve() (*ds.Message[T], error) {
 	case error:
 		// The Apply method returned an error
 		return nil, response
-	case *ds.Message[T]:
+	case ds.Message[T]:
+		s.logger.Info("recieved message", "message", response)
 		// The Apply method returned a message
-		return response, nil
+		return &response, nil
 	case nil:
 		// The Apply method returned nil
 		return nil, nil
@@ -143,6 +157,7 @@ func (s *Store[T]) Apply(log *raft.Log) interface{} {
 		return nil
 	case Recieve:
 		val, ok := s.queue.Dequeue()
+		s.logger.Info("dequeued message", "message", val)
 		if !ok {
 			s.logger.Error("failed to dequeue message")
 			return fmt.Errorf("failed to dequeue message")

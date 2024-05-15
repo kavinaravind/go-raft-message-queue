@@ -33,12 +33,12 @@ func init() {
 	conf = newConfig()
 
 	// Concensus Specific Flags
-	flag.StringVar(&conf.Concensus.ServerID, "id", "", "")
-	flag.StringVar(&conf.Concensus.Address, "raddr", "localhost", "")
-	flag.StringVar(&conf.Concensus.BaseDirectory, "join", "", "")
+	flag.StringVar(&conf.Concensus.ServerID, "id", "node01", "")
+	flag.StringVar(&conf.Concensus.Address, "raddr", "localhost:3001", "")
+	flag.StringVar(&conf.Concensus.BaseDirectory, "dir", "/tmp", "")
 
 	// Server Specific Flags
-	flag.StringVar(&conf.Server.Address, "haddr", "", "")
+	flag.StringVar(&conf.Server.Address, "haddr", "localhost:3000", "")
 
 	// Set Usage Details
 	flag.Usage = func() {

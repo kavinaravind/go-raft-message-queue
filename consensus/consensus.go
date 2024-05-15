@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/hashicorp/raft"
-	raftmdb "github.com/hashicorp/raft-mdb"
+	"github.com/hashicorp/raft-boltdb"
 )
 
 type Config struct {
@@ -26,7 +27,7 @@ func NewRaft(fsm raft.FSM, c *Config) (*raft.Raft, error) {
 	config := raft.DefaultConfig()
 	config.LocalID = raft.ServerID(c.ServerID)
 
-	store, err := raftmdb.NewMDBStore(c.BaseDirectory)
+	store, err := raftboltdb.NewBoltStore(filepath.Join(c.BaseDirectory, "raft.db"))
 	if err != nil {
 		return nil, err
 	}
