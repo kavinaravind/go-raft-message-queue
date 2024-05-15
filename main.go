@@ -8,54 +8,71 @@ import (
 	"os/signal"
 	"syscall"
 
-	consensus "github.com/kavinaravind/go-raft-message-queue/concensus"
+	"github.com/kavinaravind/go-raft-message-queue/consensus"
+	"github.com/kavinaravind/go-raft-message-queue/model"
+	"github.com/kavinaravind/go-raft-message-queue/server"
+	"github.com/kavinaravind/go-raft-message-queue/store"
 )
 
 type config struct {
-	concensus *consensus.Config
-	httpAddr  *
+	Concensus *consensus.Config
+	Server    *server.Config
 }
 
-var config *consensus.Config
+func newConfig() *config {
+	return &config{
+		Concensus: consensus.NewConsensusConfig(),
+		Server:    server.NewServerConfig(),
+	}
+}
+
+var conf *config
 
 func init() {
-	config = consensus.NewConsensusConfig()
+	conf = newConfig()
 
-	// Raft Specific Flags
-	flag.StringVar(&config.ServerID, "id", "", "")
-	flag.StringVar(&config.Address, "raddr", "localhost", "")
-	flag.StringVar(&config.Base, "join", "", "")
+	// Concensus Specific Flags
+	flag.StringVar(&conf.Concensus.ServerID, "id", "", "")
+	flag.StringVar(&conf.Concensus.Address, "raddr", "localhost", "")
+	flag.StringVar(&conf.Concensus.Base, "join", "", "")
 
 	// Server Specific Flags
-	flag.StringVar(&httpAddr, "haddr", "", "")
+	flag.StringVar(&conf.Server.Address, "haddr", "", "")
 
-	// Set usage details
+	// Set Usage Details
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
 		flag.PrintDefaults()
 	}
-
 }
 
 func main() {
 	flag.Parse()
 
-	if config.ServerID == "" {
-		slog.Error("The -id flag is required")
+	logger := slog.Default()
+
+	if conf.Concensus.ServerID == "" {
+		logger.Error("The -id flag is required")
 		os.Exit(2)
 	}
 
-	s := store.NewStore()
+	// Create a new store instance with the given logger
+	store := store.NewStore[model.Comment](logger)
+
+	// Initialize the store
+	err := store.Initialize(conf.Concensus)
+	if err != nil {
+		logger.Error("Failed to initialize store", "error", err)
+		os.Exit(1)
+	}
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	select {
-	case sig := <-sigs:
-		switch sig {
-		case syscall.SIGINT:
-			slog.Info("Received SIGINT, shutting down")
-		case syscall.SIGTERM:
-			slog.Info("Received SIGTERM, shutting down")
-		}
+	sig := <-sigs
+	switch sig {
+	case syscall.SIGINT:
+		logger.Info("Received SIGINT, shutting down")
+	case syscall.SIGTERM:
+		logger.Info("Received SIGTERM, shutting down")
 	}
 }
