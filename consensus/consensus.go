@@ -1,6 +1,7 @@
 package consensus
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"time"
@@ -49,23 +50,28 @@ func NewRaft(fsm raft.FSM, c *Config) (*raft.Raft, error) {
 }
 
 // Join joins the raft cluster
-func Join(raft *raft.Raft, address string) error {
-	configFuture := raft.GetConfiguration()
+func Join(node *raft.Raft, nodeID, address string) error {
+	configFuture := node.GetConfiguration()
 	if err := configFuture.Error(); err != nil {
 		return err
 	}
 
-	for _, server := range configFuture.Configuration().Servers {
-		if server.ID == raft.ID() {
-			if server.Address == raft.ServerAddress() {
+	for _, srv := range configFuture.Configuration().Servers {
+		if srv.ID == raft.ServerID(nodeID) || srv.Address == raft.ServerAddress(address) {
+			if srv.Address == raft.ServerAddress(address) && srv.ID == raft.ServerID(nodeID) {
 				return nil
+			}
+
+			future := node.RemoveServer(srv.ID, 0, 0)
+			if err := future.Error(); err != nil {
+				return fmt.Errorf("error removing existing node %s at %s: %s", nodeID, address, err)
 			}
 		}
 	}
 
-	f := raft.AddVoter(raft.ServerID(), raft.ServerAddress(), 0, 0)
-	if err := f.Error(); err != nil {
-		return err
+	f := node.AddVoter(raft.ServerID(nodeID), raft.ServerAddress(address), 0, 0)
+	if f.Error() != nil {
+		return f.Error()
 	}
 
 	return nil

@@ -50,6 +50,7 @@ func NewStore[T any](logger *slog.Logger) *Store[T] {
 	}
 }
 
+// Initialize is used to initialize the store with the given config
 func (s *Store[T]) Initialize(config *consensus.Config) error {
 	s.logger.Info("Initializing store")
 
@@ -114,8 +115,15 @@ func (s *Store[T]) Recieve() (*ds.Message[T], error) {
 	}
 }
 
+// Stats is used to return the stats of the raft instance
 func (s *Store[T]) Stats() map[string]string {
 	return s.raft.Stats()
+}
+
+// Join is used to join a remote node to the raft cluster
+func (s *Store[T]) Join(nodeID, address string) error {
+	s.logger.Info("received join request for remote node %s at %s", nodeID, address)
+	return consensus.Join(s.raft, nodeID, address)
 }
 
 // implement the raft fsm interface
