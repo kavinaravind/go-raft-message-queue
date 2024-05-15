@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/gob"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -47,37 +48,41 @@ func (s *Store[T]) Initialize(config *consensus.Config) error {
 	return nil
 }
 
-// implement the raft fsm
+// implement the raft fsm interface
+
+// Apply is used to apply a log entry to the store
 func (s *Store[T]) Apply(log *raft.Log) interface{} {
+	var message ds.Message[T]
+	err := json.Unmarshal(log.Data, &message)
+	if err != nil {
+		s.logger.Error("failed to unmarshal message", "error", err)
+		return false
+	}
+
+	switch message.Data.(type) {
+	case Send:
+		s.queue.Enqueue(message)
+	case Recieve:
+		s.queue.Dequeue()
+	}
+
 	return nil
 }
 
-type Snapshot[T any] struct {
-	queue *ds.Queue[T]
-}
-
-func (s *Snapshot[T]) Persist(sink raft.SnapshotSink) error {
-	// Implement the Persist method
-	return nil
-}
-
-func (s *Snapshot[T]) Release() {
-	// Implement the Release method
-}
-
+// Snapshot is used to create a snapshot of the store
 func (s *Store[T]) Snapshot() (raft.FSMSnapshot, error) {
-	// Copy the queue
-	queue := s.queue.Copy()
-
-	return &Snapshot[T]{queue: queue}, nil
+	return &Snapshot[T]{
+		queue: s.queue.Copy(),
+	}, nil
 }
 
+// Restore is used to restore the store from a snapshot
 func (s *Store[T]) Restore(rc io.ReadCloser) error {
 	queue := ds.NewQueue[T]()
 
-	dec := json.NewDecoder(rc)
+	dec := gob.NewDecoder(rc)
 
-	// Read and enqueue items until the JSON data is exhausted
+	// Read and enqueue items until the data is exhausted
 	var item ds.Message[T]
 	for {
 		if err := dec.Decode(&item); err == io.EOF {
