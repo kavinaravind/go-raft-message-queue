@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/json"
 	"io"
 	"log/slog"
 
@@ -47,14 +48,46 @@ func (s *Store[T]) Initialize(config *consensus.Config) error {
 }
 
 // implement the raft fsm
-func (s *Store[data]) Apply(log *raft.Log) interface{} {
+func (s *Store[T]) Apply(log *raft.Log) interface{} {
 	return nil
 }
 
-func (s *Store[data]) Snapshot() (raft.FSMSnapshot, error) {
-	return nil, nil
+type Snapshot[T any] struct {
+	queue *ds.Queue[T]
 }
 
-func (s *Store[data]) Restore(io.ReadCloser) error {
+func (s *Snapshot[T]) Persist(sink raft.SnapshotSink) error {
+	// Implement the Persist method
+	return nil
+}
+
+func (s *Snapshot[T]) Release() {
+	// Implement the Release method
+}
+
+func (s *Store[T]) Snapshot() (raft.FSMSnapshot, error) {
+	// Copy the queue
+	queue := s.queue.Copy()
+
+	return &Snapshot[T]{queue: queue}, nil
+}
+
+func (s *Store[T]) Restore(rc io.ReadCloser) error {
+	queue := ds.NewQueue[T]()
+
+	dec := json.NewDecoder(rc)
+
+	// Read and enqueue items until the JSON data is exhausted
+	var item ds.Message[T]
+	for {
+		if err := dec.Decode(&item); err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+		queue.Enqueue(item)
+	}
+
+	s.queue = queue
 	return nil
 }

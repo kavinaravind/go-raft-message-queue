@@ -15,10 +15,12 @@ type Config struct {
 	Address  string
 }
 
+// NewConsensusConfig creates a new consensus config
 func NewConsensusConfig() *Config {
 	return &Config{}
 }
 
+// NewRaft creates a new raft instance with the given fsm and config
 func NewRaft(fsm raft.FSM, c *Config) (*raft.Raft, error) {
 	config := raft.DefaultConfig()
 	config.LocalID = raft.ServerID(c.ServerID)
@@ -29,28 +31,19 @@ func NewRaft(fsm raft.FSM, c *Config) (*raft.Raft, error) {
 	}
 	logStore, stableStore := store, store
 
-	snapshotStore, err := newRaftFileSnapshotStore(c.Base)
+	snapshotStore, err := raft.NewFileSnapshotStore(c.Base, 2, os.Stderr)
 	if err != nil {
 		return nil, err
 	}
 
-	transport, err := newRaftTCPTransport("", c.Address)
+	address, err := net.ResolveTCPAddr("tcp", c.Address)
+	if err != nil {
+		return nil, err
+	}
+	transport, err := raft.NewTCPTransport(c.Address, address, 3, 5*time.Second, os.Stderr)
 	if err != nil {
 		return nil, err
 	}
 
 	return raft.NewRaft(config, fsm, logStore, stableStore, snapshotStore, transport)
-}
-
-func newRaftFileSnapshotStore(base string) (*raft.FileSnapshotStore, error) {
-	return raft.NewFileSnapshotStore(base, 2, os.Stderr)
-}
-
-func newRaftTCPTransport(address, bindAddr string) (*raft.NetworkTransport, error) {
-	advertise, err := net.ResolveTCPAddr("tcp", address)
-	if err != nil {
-		return nil, err
-	}
-
-	return raft.NewTCPTransport(bindAddr, advertise, 3, 5*time.Second, os.Stderr)
 }

@@ -35,3 +35,13 @@ func (q *Queue[T]) Dequeue() (Message[T], bool) {
 
 	return message, true
 }
+
+func (q *Queue[T]) Copy() *Queue[T] {
+	q.lock.RLock()
+	defer q.lock.RUnlock()
+
+	copy := NewQueue[T]()
+	copy.messages = append(copy.messages, q.messages...)
+
+	return copy
+}
