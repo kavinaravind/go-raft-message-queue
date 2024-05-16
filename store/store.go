@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"encoding/gob"
 	"encoding/json"
 	"errors"
@@ -54,20 +55,20 @@ func NewStore[T any](logger *slog.Logger) *Store[T] {
 }
 
 // Initialize is used to initialize the store with the given config
-func (s *Store[T]) Initialize(config *consensus.Config) error {
+func (s *Store[T]) Initialize(ctx context.Context, conf *consensus.Config) (chan struct{}, error) {
 	s.logger.Info("Initializing store")
 
-	consensus, err := consensus.NewConsensus(s, config)
+	consensus, err := consensus.NewConsensus(s, conf)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if config.IsLeader {
+	if conf.IsLeader {
 		configuration := raft.Configuration{
 			Servers: []raft.Server{
 				{
-					ID:      raft.ServerID(config.ServerID),
-					Address: raft.ServerAddress(config.Address),
+					ID:      raft.ServerID(conf.ServerID),
+					Address: raft.ServerAddress(conf.Address),
 				},
 			},
 		}
@@ -76,7 +77,20 @@ func (s *Store[T]) Initialize(config *consensus.Config) error {
 
 	s.consensus = consensus
 
-	return nil
+	// Listen for context cancellation and shutdown the server
+	shutdownComplete := make(chan struct{})
+	go func() {
+		<-ctx.Done()
+		future := s.consensus.Node.Shutdown()
+		if err := future.Error(); err != nil {
+			s.logger.Error("Failed to shutdown node", "error", err)
+		} else {
+			s.logger.Info("Node shutdown")
+		}
+		close(shutdownComplete)
+	}()
+
+	return shutdownComplete, nil
 }
 
 // Send is used to enqueue a message into the queue

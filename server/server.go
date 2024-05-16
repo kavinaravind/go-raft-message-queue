@@ -43,7 +43,7 @@ func NewServer(store *store.Store[model.Comment], logger *slog.Logger) *Server {
 }
 
 // Initialize starts the HTTP server
-func (s *Server) Initialize(ctx context.Context, conf *Config) {
+func (s *Server) Initialize(ctx context.Context, conf *Config) chan struct{} {
 	s.logger.Info("Initializing server")
 
 	mux := http.NewServeMux()
@@ -69,12 +69,18 @@ func (s *Server) Initialize(ctx context.Context, conf *Config) {
 	}()
 
 	// Listen for context cancellation and shutdown the server
+	shutdownComplete := make(chan struct{})
 	go func() {
 		<-ctx.Done()
 		if err := s.httpServer.Shutdown(ctx); err != nil {
 			s.logger.Error("Failed to shutdown server", "error", err)
+		} else {
+			s.logger.Info("Server shutdown")
 		}
+		close(shutdownComplete)
 	}()
+
+	return shutdownComplete
 }
 
 // handleSend is the handler for sending a message

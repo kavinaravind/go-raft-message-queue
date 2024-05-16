@@ -64,24 +64,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create a context with cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+
 	// Create a new store instance with the given logger
 	store := store.NewStore[model.Comment](logger)
 
 	// Initialize the store
-	err := store.Initialize(conf.Concensus)
+	nodeShutdownComplete, err := store.Initialize(ctx, conf.Concensus)
 	if err != nil {
 		logger.Error("Failed to initialize store", "error", err)
 		os.Exit(1)
 	}
 
-	// Create a context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-
 	// Create a new instance of the server
 	server := server.NewServer(store, logger)
 
 	// Initialize the server
-	server.Initialize(ctx, conf.Server)
+	serverShutdownComplete := server.Initialize(ctx, conf.Server)
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -93,8 +93,10 @@ func main() {
 		logger.Info("Received SIGTERM, shutting down")
 	}
 
-	logger.Info("Shutting down server")
-
-	// Cancel the context to stop the HTTP server
+	// Cancel the context to stop the HTTP server and consensus node
 	cancel()
+
+	// Wait for the server and consensus node to finish shutting down
+	<-nodeShutdownComplete
+	<-serverShutdownComplete
 }
