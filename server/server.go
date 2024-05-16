@@ -34,8 +34,8 @@ func NewServer(store *store.Store[model.Comment], logger *slog.Logger) *Server {
 	}
 }
 
-// Intitiliaze starts the HTTP server
-func (s *Server) Intitiliaze(ctx context.Context, conf *Config) {
+// Initialize starts the HTTP server
+func (s *Server) Initialize(ctx context.Context, conf *Config) {
 	s.logger.Info("Initializing server")
 
 	mux := http.NewServeMux()

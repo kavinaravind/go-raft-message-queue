@@ -52,6 +52,16 @@ func main() {
 
 	logger := slog.Default()
 
+	// create dir and nested if needed
+	if err := os.MkdirAll(conf.Concensus.BaseDirectory, 0755); err != nil {
+		logger.Error("Failed to create base directory", "error", err)
+		os.Exit(1)
+	}
+
+	if _, err := os.Stat(conf.Concensus.BaseDirectory); os.IsNotExist(err) {
+		os.Mkdir(conf.Concensus.BaseDirectory, os.ModePerm)
+	}
+
 	if conf.Concensus.ServerID == "" {
 		logger.Error("The -id flag is required")
 		os.Exit(2)
@@ -73,8 +83,8 @@ func main() {
 	// Create a new instance of the server
 	server := server.NewServer(store, logger)
 
-	// Intitiliaze the server
-	server.Intitiliaze(ctx, conf.Server)
+	// Initialize the server
+	server.Initialize(ctx, conf.Server)
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -90,5 +100,4 @@ func main() {
 
 	// Cancel the context to stop the HTTP server
 	cancel()
-
 }
