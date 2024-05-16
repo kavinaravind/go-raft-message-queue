@@ -44,8 +44,8 @@ func NewConsensus(fsm raft.FSM, conf *Config) (*Consensus, error) {
 
 	// Set the snapshot interval to 1 second and the snapshot threshold to 1
 	// so a snapshot is taken after every log entry for testing
-	config.SnapshotInterval = 1 * time.Second
-	config.SnapshotThreshold = 1
+	// config.SnapshotInterval = 1 * time.Second
+	// config.SnapshotThreshold = 1
 
 	// Create the raft store
 	store, err := raftboltdb.NewBoltStore(filepath.Join(conf.BaseDirectory, "raft.db"))

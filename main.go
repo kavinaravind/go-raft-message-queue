@@ -33,7 +33,7 @@ func init() {
 	conf = newConfig()
 
 	// Concensus Specific Flags
-	flag.BoolVar(&conf.Concensus.IsLeader, "leader", true, "Set to true if this node is the leader")
+	flag.BoolVar(&conf.Concensus.IsLeader, "leader", false, "Set to true if this node is the leader")
 	flag.StringVar(&conf.Concensus.ServerID, "id", "", "The unique identifier for this server")
 	flag.StringVar(&conf.Concensus.Address, "raddr", "localhost:3001", "The address that the Raft consensus group should use")
 	flag.StringVar(&conf.Concensus.BaseDirectory, "dir", "/tmp", "The base directory for storing Raft data")
