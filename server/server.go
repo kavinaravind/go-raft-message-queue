@@ -11,19 +11,27 @@ import (
 	"github.com/kavinaravind/go-raft-message-queue/store"
 )
 
+// Config is the configuration for the server
 type Config struct {
+	// Address is the address at which the server will be listening
 	Address string
 }
 
+// NewServerConfig creates a new server config
 func NewServerConfig() *Config {
 	return &Config{}
 }
 
 // Server is a simple HTTP server that listens for incoming requests
 type Server struct {
+	// httpServer is the underlying HTTP server
 	httpServer *http.Server
-	store      *store.Store[model.Comment]
-	logger     *slog.Logger
+
+	// store is the store instance
+	store *store.Store[model.Comment]
+
+	// logger is the logger instance
+	logger *slog.Logger
 }
 
 // NewServer creates a new instance of the Server
@@ -40,16 +48,19 @@ func (s *Server) Initialize(ctx context.Context, conf *Config) {
 
 	mux := http.NewServeMux()
 
+	// Register the handlers
 	mux.HandleFunc("/send", s.handleSend)
 	mux.HandleFunc("/recieve", s.handleRecieve)
 	mux.HandleFunc("/stats", s.handleStats)
 	mux.HandleFunc("/join", s.handleJoin)
 
+	// Create the HTTP server
 	s.httpServer = &http.Server{
 		Addr:    conf.Address,
 		Handler: mux,
 	}
 
+	// Start the HTTP server
 	go func() {
 		if err := s.httpServer.ListenAndServe(); err != http.ErrServerClosed {
 			s.logger.Error("Failed to start server", "error", err)
@@ -57,6 +68,7 @@ func (s *Server) Initialize(ctx context.Context, conf *Config) {
 		}
 	}()
 
+	// Listen for context cancellation and shutdown the server
 	go func() {
 		<-ctx.Done()
 		if err := s.httpServer.Shutdown(ctx); err != nil {
@@ -65,6 +77,7 @@ func (s *Server) Initialize(ctx context.Context, conf *Config) {
 	}()
 }
 
+// handleSend is the handler for sending a message
 func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
@@ -85,6 +98,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
+// handleRecieve is the handler for recieving a message
 func (s *Server) handleRecieve(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
@@ -98,7 +112,6 @@ func (s *Server) handleRecieve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-
 	err = json.NewEncoder(w).Encode(message)
 	if err != nil {
 		http.Error(w, "Failed to encode message", http.StatusInternalServerError)
@@ -108,11 +121,11 @@ func (s *Server) handleRecieve(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// handleStats is the handler for getting the stats of the store
 func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	stats := s.store.Stats()
 
 	w.Header().Set("Content-Type", "application/json")
-
 	err := json.NewEncoder(w).Encode(stats)
 	if err != nil {
 		http.Error(w, "Failed to encode message", http.StatusInternalServerError)
@@ -122,6 +135,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// handleJoin is the handler for joining a remote node to the cluster
 func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)

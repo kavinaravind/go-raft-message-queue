@@ -7,6 +7,7 @@ import (
 	"github.com/kavinaravind/go-raft-message-queue/ds"
 )
 
+// Snapshot is used to create a snapshot of the queue
 type Snapshot[T any] struct {
 	queue *ds.Queue[T]
 }

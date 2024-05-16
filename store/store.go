@@ -14,16 +14,19 @@ import (
 	"github.com/kavinaravind/go-raft-message-queue/ds"
 )
 
+// Specific operations that can be applied to the store
 const (
 	Send = iota
 	Recieve
 )
 
+// command is used to represent the command that will be applied to the store
 type command[T any] struct {
-	Operation int           `json:"operation,omitempty"`
-	Message   ds.Message[T] `json:"message,omitempty"`
+	Operation int           `json:"operation"`
+	Message   ds.Message[T] `json:"message"`
 }
 
+// newCommand is used to create a new command instance
 func newCommand[T any](operation int, message ds.Message[T]) *command[T] {
 	return &command[T]{
 		Operation: operation,
@@ -35,8 +38,8 @@ type Store[T any] struct {
 	// ds that will be distributed across each node
 	queue *ds.Queue[T]
 
-	// raft instance that will be used to replicate the ds
-	raft *raft.Raft
+	// consensus instance that will be used to replicate the ds
+	consensus *consensus.Consensus
 
 	// logger instance
 	logger *slog.Logger
@@ -54,30 +57,31 @@ func NewStore[T any](logger *slog.Logger) *Store[T] {
 func (s *Store[T]) Initialize(config *consensus.Config) error {
 	s.logger.Info("Initializing store")
 
-	configuration := raft.Configuration{
-		Servers: []raft.Server{
-			{
-				ID:      raft.ServerID(config.ServerID),
-				Address: raft.ServerAddress(config.Address),
-			},
-		},
-	}
-
-	raft, err := consensus.NewRaft(s, config)
+	consensus, err := consensus.NewConsensus(s, config)
 	if err != nil {
 		return err
 	}
 
-	raft.BootstrapCluster(configuration)
+	if config.IsLeader {
+		configuration := raft.Configuration{
+			Servers: []raft.Server{
+				{
+					ID:      raft.ServerID(config.ServerID),
+					Address: raft.ServerAddress(config.Address),
+				},
+			},
+		}
+		consensus.Node.BootstrapCluster(configuration)
+	}
 
-	s.raft = raft
+	s.consensus = consensus
 
 	return nil
 }
 
 // Send is used to enqueue a message into the queue
 func (s *Store[T]) Send(data T) error {
-	if s.raft.State() != raft.Leader {
+	if s.consensus.Node.State() != raft.Leader {
 		return errors.New("not the leader")
 	}
 
@@ -87,14 +91,14 @@ func (s *Store[T]) Send(data T) error {
 		return err
 	}
 
-	future := s.raft.Apply(bytes, 10*time.Second)
+	future := s.consensus.Node.Apply(bytes, 10*time.Second)
 	return future.Error()
 }
 
 // Recieve is used to dequeue a message from the queue
 func (s *Store[T]) Recieve() (*ds.Message[T], error) {
-	if s.raft.State() != raft.Leader {
-		return nil, errors.New("not the leader")
+	if s.consensus.Node.State() != raft.Leader {
+		return nil, errors.New("node is not the leader")
 	}
 
 	c := newCommand[T](Recieve, ds.Message[T]{})
@@ -104,9 +108,7 @@ func (s *Store[T]) Recieve() (*ds.Message[T], error) {
 		return nil, err
 	}
 
-	s.logger.Info("sending message", "message", c)
-
-	future := s.raft.Apply(bytes, 10*time.Second)
+	future := s.consensus.Node.Apply(bytes, 10*time.Second)
 	if err := future.Error(); err != nil {
 		s.logger.Error("failed to apply message", "error", err)
 		return nil, err
@@ -117,12 +119,8 @@ func (s *Store[T]) Recieve() (*ds.Message[T], error) {
 		// The Apply method returned an error
 		return nil, response
 	case ds.Message[T]:
-		s.logger.Info("recieved message", "message", response)
 		// The Apply method returned a message
 		return &response, nil
-	case nil:
-		// The Apply method returned nil
-		return nil, nil
 	default:
 		// The Apply method returned an unexpected type
 		return nil, fmt.Errorf("unexpected response type: %T", response)
@@ -131,13 +129,13 @@ func (s *Store[T]) Recieve() (*ds.Message[T], error) {
 
 // Stats is used to return the stats of the raft instance
 func (s *Store[T]) Stats() map[string]string {
-	return s.raft.Stats()
+	return s.consensus.Node.Stats()
 }
 
 // Join is used to join a remote node to the raft cluster
 func (s *Store[T]) Join(nodeID, address string) error {
 	s.logger.Info("received join request for remote node %s at %s", nodeID, address)
-	return consensus.Join(s.raft, nodeID, address)
+	return s.consensus.Join(nodeID, address)
 }
 
 // implement the raft fsm interface
@@ -157,10 +155,8 @@ func (s *Store[T]) Apply(log *raft.Log) interface{} {
 		return nil
 	case Recieve:
 		val, ok := s.queue.Dequeue()
-		s.logger.Info("dequeued message", "message", val)
 		if !ok {
-			s.logger.Error("failed to dequeue message")
-			return fmt.Errorf("failed to dequeue message")
+			return errors.New("queue is empty")
 		}
 		return val
 	default:
@@ -193,5 +189,6 @@ func (s *Store[T]) Restore(rc io.ReadCloser) error {
 	}
 
 	s.queue = queue
+
 	return nil
 }

@@ -11,10 +11,24 @@ import (
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 )
 
+// Consensus is the consensus module
+type Consensus struct {
+	Node *raft.Raft
+}
+
+// Config is the configuration for the consensus module
 type Config struct {
-	ServerID      string
+	// IsLeader is a flag that indicates if the server is the leader
+	IsLeader bool
+
+	// ServerID is the unique identifier for the server
+	ServerID string
+
+	// BaseDirectory is the directory where the raft data will be stored
 	BaseDirectory string
-	Address       string
+
+	// Address is the address at which the server will be listening
+	Address string
 }
 
 // NewConsensusConfig creates a new consensus config
@@ -22,55 +36,70 @@ func NewConsensusConfig() *Config {
 	return &Config{}
 }
 
-// NewRaft creates a new raft instance with the given fsm and config
-func NewRaft(fsm raft.FSM, c *Config) (*raft.Raft, error) {
+// NewConsensus creates a new instance of the consensus module
+func NewConsensus(fsm raft.FSM, conf *Config) (*Consensus, error) {
+	// Create the raft configuration
 	config := raft.DefaultConfig()
-	config.LocalID = raft.ServerID(c.ServerID)
+	config.LocalID = raft.ServerID(conf.ServerID)
 
-	store, err := raftboltdb.NewBoltStore(filepath.Join(c.BaseDirectory, "raft.db"))
+	// Set the snapshot interval to 1 second
+	config.SnapshotInterval = 1 * time.Second
+
+	// Set the snapshot threshold to 1, so a snapshot is taken after every log entry
+	config.SnapshotThreshold = 1
+
+	// Create the raft store
+	store, err := raftboltdb.NewBoltStore(filepath.Join(conf.BaseDirectory, "raft.db"))
 	if err != nil {
 		return nil, err
 	}
 	logStore, stableStore := store, store
 
-	snapshotStore, err := raft.NewFileSnapshotStore(c.BaseDirectory, 2, os.Stderr)
+	// Create the snapshot store
+	snapshotStore, err := raft.NewFileSnapshotStore(conf.BaseDirectory, 2, os.Stderr)
 	if err != nil {
 		return nil, err
 	}
 
-	address, err := net.ResolveTCPAddr("tcp", c.Address)
+	// Create the transport
+	address, err := net.ResolveTCPAddr("tcp", conf.Address)
 	if err != nil {
 		return nil, err
 	}
-	transport, err := raft.NewTCPTransport(c.Address, address, 3, 5*time.Second, os.Stderr)
+	transport, err := raft.NewTCPTransport(conf.Address, address, 3, 5*time.Second, os.Stderr)
 	if err != nil {
 		return nil, err
 	}
 
-	return raft.NewRaft(config, fsm, logStore, stableStore, snapshotStore, transport)
+	node, err := raft.NewRaft(config, fsm, logStore, stableStore, snapshotStore, transport)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Consensus{Node: node}, nil
 }
 
 // Join joins the raft cluster
-func Join(node *raft.Raft, nodeID, address string) error {
-	configFuture := node.GetConfiguration()
+func (c *Consensus) Join(nodeID, address string) error {
+	configFuture := c.Node.GetConfiguration()
 	if err := configFuture.Error(); err != nil {
 		return err
 	}
 
-	for _, srv := range configFuture.Configuration().Servers {
-		if srv.ID == raft.ServerID(nodeID) || srv.Address == raft.ServerAddress(address) {
-			if srv.Address == raft.ServerAddress(address) && srv.ID == raft.ServerID(nodeID) {
+	for _, server := range configFuture.Configuration().Servers {
+		if server.ID == raft.ServerID(nodeID) || server.Address == raft.ServerAddress(address) {
+			if server.Address == raft.ServerAddress(address) && server.ID == raft.ServerID(nodeID) {
 				return nil
 			}
 
-			future := node.RemoveServer(srv.ID, 0, 0)
+			future := c.Node.RemoveServer(server.ID, 0, 0)
 			if err := future.Error(); err != nil {
 				return fmt.Errorf("error removing existing node %s at %s: %s", nodeID, address, err)
 			}
 		}
 	}
 
-	f := node.AddVoter(raft.ServerID(nodeID), raft.ServerAddress(address), 0, 0)
+	f := c.Node.AddVoter(raft.ServerID(nodeID), raft.ServerAddress(address), 0, 0)
 	if f.Error() != nil {
 		return f.Error()
 	}
