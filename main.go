@@ -33,12 +33,13 @@ func init() {
 	conf = newConfig()
 
 	// Concensus Specific Flags
-	flag.StringVar(&conf.Concensus.ServerID, "id", "node01", "")
-	flag.StringVar(&conf.Concensus.Address, "raddr", "localhost:3001", "")
-	flag.StringVar(&conf.Concensus.BaseDirectory, "dir", "/tmp", "")
+	flag.BoolVar(&conf.Concensus.IsLeader, "leader", true, "Set to true if this node is the leader")
+	flag.StringVar(&conf.Concensus.ServerID, "id", "", "The unique identifier for this server")
+	flag.StringVar(&conf.Concensus.Address, "raddr", "localhost:3001", "The address that the Raft consensus group should use")
+	flag.StringVar(&conf.Concensus.BaseDirectory, "dir", "/tmp", "The base directory for storing Raft data")
 
 	// Server Specific Flags
-	flag.StringVar(&conf.Server.Address, "haddr", "localhost:3000", "")
+	flag.StringVar(&conf.Server.Address, "haddr", "localhost:3000", "The address that the HTTP server should use")
 
 	// Set Usage Details
 	flag.Usage = func() {
@@ -52,19 +53,15 @@ func main() {
 
 	logger := slog.Default()
 
-	// create dir and nested if needed
-	if err := os.MkdirAll(conf.Concensus.BaseDirectory, 0755); err != nil {
-		logger.Error("Failed to create base directory", "error", err)
-		os.Exit(1)
-	}
-
-	if _, err := os.Stat(conf.Concensus.BaseDirectory); os.IsNotExist(err) {
-		os.Mkdir(conf.Concensus.BaseDirectory, os.ModePerm)
-	}
-
 	if conf.Concensus.ServerID == "" {
 		logger.Error("The -id flag is required")
 		os.Exit(2)
+	}
+
+	// Create the base directory if it does not exist
+	if err := os.MkdirAll(conf.Concensus.BaseDirectory, 0755); err != nil {
+		logger.Error("Failed to create base directory", "error", err)
+		os.Exit(1)
 	}
 
 	// Create a new store instance with the given logger

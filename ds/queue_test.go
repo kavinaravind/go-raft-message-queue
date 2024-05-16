@@ -6,8 +6,8 @@ import (
 
 func TestNewQueue(t *testing.T) {
 	q := NewQueue[int]()
-	if len(q.messages) != 0 {
-		t.Errorf("NewQueue() = %d; want 0", len(q.messages))
+	if len(q.Messages) != 0 {
+		t.Errorf("NewQueue() = %d; want 0", len(q.Messages))
 	}
 }
 
@@ -15,8 +15,8 @@ func TestEnqueue(t *testing.T) {
 	q := NewQueue[int]()
 	q.Enqueue(Message[int]{Data: 1})
 
-	if len(q.messages) != 1 || q.messages[0].Data != 1 {
-		t.Errorf("Enqueue() = %v; want [1]", q.messages)
+	if len(q.Messages) != 1 || q.Messages[0].Data != 1 {
+		t.Errorf("Enqueue() = %v; want [1]", q.Messages)
 	}
 }
 
@@ -40,7 +40,7 @@ func TestCopy(t *testing.T) {
 	defer q.lock.RUnlock()
 	defer copy.lock.RUnlock()
 
-	if len(copy.messages) != 1 || copy.messages[0].Data != 1 {
-		t.Errorf("Copy() = %v; want [1]", copy.messages)
+	if len(copy.Messages) != 1 || copy.Messages[0].Data != 1 {
+		t.Errorf("Copy() = %v; want [1]", copy.Messages)
 	}
 }

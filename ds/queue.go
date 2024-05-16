@@ -9,7 +9,7 @@ type Message[T any] struct {
 
 // Queue is a generic queue type
 type Queue[T any] struct {
-	messages []Message[T]
+	Messages []Message[T]
 	lock     sync.RWMutex
 }
 
@@ -23,7 +23,7 @@ func (q *Queue[T]) Enqueue(message Message[T]) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
-	q.messages = append(q.messages, message)
+	q.Messages = append(q.Messages, message)
 }
 
 // Dequeue is used to remove a message from the queue
@@ -31,12 +31,12 @@ func (q *Queue[T]) Dequeue() (Message[T], bool) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
-	if len(q.messages) == 0 {
+	if len(q.Messages) == 0 {
 		return Message[T]{}, false
 	}
 
-	message := q.messages[0]
-	q.messages = q.messages[1:]
+	message := q.Messages[0]
+	q.Messages = q.Messages[1:]
 
 	return message, true
 }
@@ -47,7 +47,7 @@ func (q *Queue[T]) Copy() *Queue[T] {
 	defer q.lock.RUnlock()
 
 	copy := NewQueue[T]()
-	copy.messages = append(copy.messages, q.messages...)
+	copy.Messages = append(copy.Messages, q.Messages...)
 
 	return copy
 }

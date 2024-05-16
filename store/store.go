@@ -173,22 +173,17 @@ func (s *Store[T]) Snapshot() (raft.FSMSnapshot, error) {
 
 // Restore is used to restore the store from a snapshot
 func (s *Store[T]) Restore(rc io.ReadCloser) error {
-	queue := ds.NewQueue[T]()
+	defer rc.Close()
 
 	dec := gob.NewDecoder(rc)
 
-	// Read and enqueue items until the data is exhausted
-	var item ds.Message[T]
-	for {
-		if err := dec.Decode(&item); err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-		queue.Enqueue(item)
+	// Decode the entire queue
+	var queue ds.Queue[T]
+	if err := dec.Decode(&queue); err != nil {
+		return fmt.Errorf("failed to decode queue: %w", err)
 	}
 
-	s.queue = queue
+	s.queue = &queue
 
 	return nil
 }
