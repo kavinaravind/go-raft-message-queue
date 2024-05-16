@@ -120,3 +120,21 @@ func (c *Consensus) Join(nodeID, address string) error {
 
 	return nil
 }
+
+// WaitForNodeToBeLeader waits for the node to become the leader
+func (c *Consensus) WaitForNodeToBeLeader(duration time.Duration) error {
+	timeout := time.After(duration)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("timed out waiting for node to be leader")
+		case <-ticker.C:
+			if c.Node.State() == raft.Leader {
+				return nil
+			}
+		}
+	}
+}

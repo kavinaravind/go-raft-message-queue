@@ -1,7 +1,6 @@
 package consensus
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -23,22 +22,6 @@ func (m *MockFSM) Snapshot() (raft.FSMSnapshot, error) {
 
 func (m *MockFSM) Restore(rc io.ReadCloser) error {
 	return nil
-}
-
-func waitForNodeToBeLeader(node *Consensus, duration time.Duration) error {
-	timeout := time.After(duration)
-	tick := time.Tick(100 * time.Millisecond)
-
-	for {
-		select {
-		case <-timeout:
-			return fmt.Errorf("timed out waiting for node to be leader")
-		case <-tick:
-			if node.Node.State() == raft.Leader {
-				return nil
-			}
-		}
-	}
 }
 
 func TestNewConsensus(t *testing.T) {
@@ -102,7 +85,7 @@ func TestJoin(t *testing.T) {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if err := waitForNodeToBeLeader(node1, 5*time.Second); err != nil {
+	if err := node1.WaitForNodeToBeLeader(5 * time.Second); err != nil {
 		t.Fatalf("expected node1 to be leader, got: %v", err)
 	}
 

@@ -190,3 +190,8 @@ func (s *Store[T]) Restore(rc io.ReadCloser) error {
 
 	return nil
 }
+
+// WaitForNodeToBeLeader is used to wait for the node to become the leader
+func (s *Store[T]) WaitForNodeToBeLeader(duration time.Duration) error {
+	return s.consensus.WaitForNodeToBeLeader(duration)
+}

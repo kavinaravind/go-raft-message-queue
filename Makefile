@@ -8,7 +8,7 @@ build:
 
 ## test: Run tests
 test:
-	go test -v ./...
+	go test -p 1 -v ./...
 
 ## clean: Clean build files, tmp files
 clean:
