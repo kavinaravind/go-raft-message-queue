@@ -63,18 +63,6 @@ func (s *Store[T]) Initialize(ctx context.Context, conf *consensus.Config) (chan
 		return nil, err
 	}
 
-	if conf.IsLeader {
-		configuration := raft.Configuration{
-			Servers: []raft.Server{
-				{
-					ID:      raft.ServerID(conf.ServerID),
-					Address: raft.ServerAddress(conf.Address),
-				},
-			},
-		}
-		consensus.Node.BootstrapCluster(configuration)
-	}
-
 	s.consensus = consensus
 
 	// Listen for context cancellation and shutdown the server

@@ -75,6 +75,18 @@ func NewConsensus(fsm raft.FSM, conf *Config) (*Consensus, error) {
 		return nil, err
 	}
 
+	if conf.IsLeader {
+		configuration := raft.Configuration{
+			Servers: []raft.Server{
+				{
+					ID:      raft.ServerID(conf.ServerID),
+					Address: raft.ServerAddress(conf.Address),
+				},
+			},
+		}
+		node.BootstrapCluster(configuration)
+	}
+
 	return &Consensus{Node: node}, nil
 }
 
