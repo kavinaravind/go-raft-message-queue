@@ -22,7 +22,7 @@ These instructions will get you up and running on your local machine for develop
 ```sh
 git clone https://github.com/yourusername/go-raft-message-queue.git
 cd go-raft-message-queue
-make build
+make clean && make build
 ```
 
 ## Command Line Arguments
@@ -34,7 +34,9 @@ make build
 - The `-paddr` flag is used to specify the host and port of the leader node to join the cluster.
 - The `-haddr` flag is used to specify the host and port of the server for the client to interact with.
 
-- The host and port of the leader node can be specified using the `-haddr` flag. The host and port of the node can be specified using the `-paddr` flag. The Raft address of the node can be specified using the `-raddr` flag. The directory where the node's data will be stored can be specified using the `-dir` flag.
+## Running the Nodes
+
+The following commands will run a leader node and two follower nodes on your local machine. The leader node will be running on port `3000`, and the follower nodes will be running on ports `3002` and `3004`. The Raft addresses will be `3001`, `3003`, and `3005` respectively. The data for each node will be stored in the `tmp` directory of the current working directory. These ports can be any available ports on your machine.
 
 ### Running the Leader Node
 

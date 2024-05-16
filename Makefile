@@ -10,7 +10,8 @@ build:
 test:
 	go test -v ./...
 
-## clean: Clean build files
+## clean: Clean build files, tmp files
 clean:
 	go clean
 	rm -f $(NAME)
+	rm -rf ./tmp/* 

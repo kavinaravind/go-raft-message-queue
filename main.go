@@ -100,7 +100,7 @@ func main() {
 			logger.Error("Failed to send join request", "error", err)
 			os.Exit(1)
 		}
-		defer resp.Body.Close()
+		resp.Body.Close()
 
 		if resp.StatusCode != http.StatusCreated {
 			logger.Error("Received non-OK response to join request", "status", resp.StatusCode)
