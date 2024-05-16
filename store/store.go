@@ -129,9 +129,9 @@ func (s *Store[T]) Recieve() (*ds.Message[T], error) {
 	}
 
 	switch response := future.Response().(type) {
-	case error:
-		// The Apply method returned an error
-		return nil, response
+	case nil:
+		// The Apply method returned an empty response
+		return &ds.Message[T]{}, nil
 	case ds.Message[T]:
 		// The Apply method returned a message
 		return &response, nil
@@ -169,8 +169,9 @@ func (s *Store[T]) Apply(log *raft.Log) interface{} {
 		return nil
 	case Recieve:
 		val, ok := s.queue.Dequeue()
+		// If the queue is empty, return nil
 		if !ok {
-			return errors.New("queue is empty")
+			return nil
 		}
 		return val
 	default:

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,8 +19,9 @@ import (
 )
 
 type config struct {
-	Concensus *consensus.Config
-	Server    *server.Config
+	JoinAddress string
+	Concensus   *consensus.Config
+	Server      *server.Config
 }
 
 func newConfig() *config {
@@ -37,6 +41,7 @@ func init() {
 	flag.StringVar(&conf.Concensus.ServerID, "id", "", "The unique identifier for this server")
 	flag.StringVar(&conf.Concensus.Address, "raddr", "localhost:3001", "The address that the Raft consensus group should use")
 	flag.StringVar(&conf.Concensus.BaseDirectory, "dir", "/tmp", "The base directory for storing Raft data")
+	flag.StringVar(&conf.JoinAddress, "paddr", "", "The address of an existing node to join")
 
 	// Server Specific Flags
 	flag.StringVar(&conf.Server.Address, "haddr", "localhost:3000", "The address that the HTTP server should use")
@@ -82,6 +87,26 @@ func main() {
 
 	// Initialize the server
 	serverShutdownComplete := server.Initialize(ctx, conf.Server)
+
+	// If join was specified, make the join request.
+	if conf.JoinAddress != "" {
+		b, err := json.Marshal(map[string]string{"address": conf.Concensus.Address, "id": conf.Concensus.ServerID})
+		if err != nil {
+			logger.Error("Failed to marshal join request", "error", err)
+			os.Exit(1)
+		}
+		resp, err := http.Post(fmt.Sprintf("http://%s/join", conf.JoinAddress), "application-type/json", bytes.NewReader(b))
+		if err != nil {
+			logger.Error("Failed to send join request", "error", err)
+			os.Exit(1)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusCreated {
+			logger.Error("Received non-OK response to join request", "status", resp.StatusCode)
+			os.Exit(1)
+		}
+	}
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)

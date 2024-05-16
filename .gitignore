@@ -25,3 +25,4 @@ go.work
 
 # Anything under a tmp folder
 **/tmp/*
+!tmp/.keep
