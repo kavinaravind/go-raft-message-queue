@@ -24,36 +24,16 @@ func (m *MockFSM) Restore(rc io.ReadCloser) error {
 	return nil
 }
 
-func TestNewConsensus(t *testing.T) {
+func TestNodes(t *testing.T) {
 	fsm := &MockFSM{}
 
 	tmpDir1, err := os.MkdirTemp("", "node1")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir1)
-
-	conf := &Config{
-		IsLeader:      true,
-		ServerID:      "test",
-		BaseDirectory: tmpDir1,
-		Address:       "localhost:8000",
-	}
-
-	_, err = NewConsensus(fsm, conf)
-	if err != nil {
-		t.Errorf("expected no error, got: %v", err)
-	}
-}
-
-func TestJoin(t *testing.T) {
-	fsm := &MockFSM{}
-
-	tmpDir1, err := os.MkdirTemp("", "node1")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir1)
+	t.Cleanup(func() {
+		os.RemoveAll(tmpDir1)
+	})
 
 	conf1 := &Config{
 		IsLeader:      true,
@@ -63,15 +43,31 @@ func TestJoin(t *testing.T) {
 	}
 
 	node1, err := NewConsensus(fsm, conf1)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
+	t.Cleanup(func() {
+		future := node1.Node.Shutdown()
+		if err := future.Error(); err != nil {
+			t.Logf("Failed to shutdown node1: %v", err)
+		}
+	})
+	t.Run("TestNewConsensusLeader", func(t *testing.T) {
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+
+	t.Run("TestNode1BecomesLeader", func(t *testing.T) {
+		if err := node1.WaitForNodeToBeLeader(5 * time.Second); err != nil {
+			t.Fatalf("expected node1 to be leader, got: %v", err)
+		}
+	})
 
 	tmpDir2, err := os.MkdirTemp("", "node2")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir2)
+	t.Cleanup(func() {
+		os.RemoveAll(tmpDir1)
+	})
 
 	conf2 := &Config{
 		IsLeader:      false,
@@ -80,17 +76,30 @@ func TestJoin(t *testing.T) {
 		Address:       "localhost:8001",
 	}
 
-	_, err = NewConsensus(fsm, conf2)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
+	node2, err := NewConsensus(fsm, conf2)
+	t.Cleanup(func() {
+		future := node2.Node.Shutdown()
+		if err := future.Error(); err != nil {
+			t.Logf("Failed to shutdown node2: %v", err)
+		}
+	})
+	t.Run("TestNewConsensusFollower", func(t *testing.T) {
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
 
-	if err := node1.WaitForNodeToBeLeader(5 * time.Second); err != nil {
-		t.Fatalf("expected node1 to be leader, got: %v", err)
-	}
+	t.Run("TestNode2IsFollower", func(t *testing.T) {
+		stats := node2.Node.Stats()
+		if stats["state"] != "Follower" {
+			t.Errorf("expected node2 to be a follower, got: %v", stats["state"])
+		}
+	})
 
-	err = node1.Join("node2", "localhost:8001")
-	if err != nil {
-		t.Errorf("expected no error, got: %v", err)
-	}
+	t.Run("TestJoin", func(t *testing.T) {
+		err = node1.Join("node2", "localhost:8001")
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
 }

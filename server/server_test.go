@@ -26,7 +26,9 @@ func setup(t *testing.T) (*store.Store[model.Comment], *Server) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	t.Cleanup(func() { os.RemoveAll(tmpDir1) })
+	t.Cleanup(func() {
+		os.RemoveAll(tmpDir1)
+	})
 
 	// Create a new consensus config
 	conf := &consensus.Config{
