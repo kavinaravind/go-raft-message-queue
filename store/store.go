@@ -136,7 +136,7 @@ func (s *Store[T]) Stats() map[string]string {
 
 // Join is used to join a remote node to the raft cluster
 func (s *Store[T]) Join(nodeID, address string) error {
-	s.logger.Info("received join request for remote node %s at %s", nodeID, address)
+	s.logger.Info(fmt.Sprintf("received join request for remote node %s at %s", nodeID, address))
 	return s.consensus.Join(nodeID, address)
 }
 

@@ -115,6 +115,7 @@ func (c *Consensus) Join(nodeID, address string) error {
 	// Add the new node as a voter
 	f := c.Node.AddVoter(raft.ServerID(nodeID), raft.ServerAddress(address), 0, 0)
 	if f.Error() != nil {
+		fmt.Println("Reacheded hererehrere", f.Error())
 		return f.Error()
 	}
 

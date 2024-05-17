@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -106,6 +107,73 @@ func TestServer(t *testing.T) {
 		}
 	})
 
-	// TODO: Add more tests
+	t.Run("HandleRecieve", func(t *testing.T) {
+		// Create a new HTTP request
+		req, err := http.NewRequest(http.MethodGet, "/recieve", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
 
+		// Create a ResponseRecorder to record the response
+		rr := httptest.NewRecorder()
+
+		// Call the handler function
+		handler := http.HandlerFunc(server.handleRecieve)
+		handler.ServeHTTP(rr, req)
+
+		// Check the status code is what we expect
+		if status := rr.Code; status != http.StatusOK {
+			t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+		}
+	})
+
+	t.Run("HandleStats", func(t *testing.T) {
+		// Create a new HTTP request
+		req, err := http.NewRequest(http.MethodGet, "/stats", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Create a ResponseRecorder to record the response
+		rr := httptest.NewRecorder()
+
+		// Call the handler function
+		handler := http.HandlerFunc(server.handleStats)
+		handler.ServeHTTP(rr, req)
+
+		// Check the status code is what we expect
+		if status := rr.Code; status != http.StatusOK {
+			t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+		}
+
+		// Check state
+		var stats map[string]string
+		if err := json.NewDecoder(rr.Body).Decode(&stats); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+
+		if stats["state"] != "Leader" {
+			t.Errorf("expected node2 to be a follower, got: %v", stats["state"])
+		}
+	})
+
+	t.Run("HandleJoin", func(t *testing.T) {
+		// Create a new HTTP request
+		req, err := http.NewRequest(http.MethodPost, "/join", strings.NewReader(`{"address": "localhost:8001", "id": "node2"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Create a ResponseRecorder to record the response
+		rr := httptest.NewRecorder()
+
+		// Call the handler function
+		handler := http.HandlerFunc(server.handleJoin)
+		handler.ServeHTTP(rr, req)
+
+		// Check the status code is what we expect (will be 201 but raft will to appendEntries as node2 is not up)
+		if status := rr.Code; status != http.StatusCreated {
+			t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusCreated)
+		}
+	})
 }
