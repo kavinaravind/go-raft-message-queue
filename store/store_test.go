@@ -37,8 +37,9 @@ func TestStore_Initialize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir1)
-
+	t.Cleanup(func() {
+		os.RemoveAll(tmpDir1)
+	})
 	// Create a new consensus config
 	conf := &consensus.Config{
 		IsLeader:      true,
@@ -48,7 +49,7 @@ func TestStore_Initialize(t *testing.T) {
 	}
 
 	// Create a context that will be cancelled after a delay
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	// Call Initialize
@@ -56,9 +57,14 @@ func TestStore_Initialize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
-
-	// Wait for the context to be cancelled and the shutdownComplete channel to be closed
-	<-shutdownComplete
+	t.Cleanup(func() {
+		select {
+		case <-shutdownComplete:
+			// Shutdown completed
+		case <-time.After(5 * time.Second):
+			t.Error("Timeout waiting for shutdown to complete")
+		}
+	})
 
 	// Check that the consensus field was set
 	if store.consensus == nil {
