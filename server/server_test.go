@@ -56,9 +56,9 @@ func setup(t *testing.T) (*store.Store[model.Comment], *Server) {
 	})
 
 	// Create a new server with a mock store and logger
-	s := NewServer(store, logger)
+	server := NewServer(store, logger)
 
-	return store, s
+	return store, server
 }
 
 func TestServer(t *testing.T) {
