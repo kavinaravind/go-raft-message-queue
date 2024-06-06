@@ -70,11 +70,13 @@ func NewConsensus(fsm raft.FSM, conf *Config) (*Consensus, error) {
 		return nil, err
 	}
 
+	// Create the raft node
 	node, err := raft.NewRaft(config, fsm, logStore, stableStore, snapshotStore, transport)
 	if err != nil {
 		return nil, err
 	}
 
+	// If the server is the leader, bootstrap the cluster
 	if conf.IsLeader {
 		configuration := raft.Configuration{
 			Servers: []raft.Server{
@@ -115,7 +117,6 @@ func (c *Consensus) Join(nodeID, address string) error {
 	// Add the new node as a voter
 	f := c.Node.AddVoter(raft.ServerID(nodeID), raft.ServerAddress(address), 0, 0)
 	if f.Error() != nil {
-		fmt.Println("Reacheded hererehrere", f.Error())
 		return f.Error()
 	}
 

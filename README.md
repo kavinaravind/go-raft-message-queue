@@ -8,6 +8,8 @@ This project is an implementation of a distributed message queue using the Raft 
 - [Raft backend implementation using BoltDB](https://github.com/hashicorp/raft-boltdb)
 - [A reference use of Hashicorp's Raft implementation](https://github.com/otoolep/hraftd)
 
+Full walkthrouh of the project can be found [here](https://kavinaravind.com/articles/implementing-a-distributed-message-queue-in-go).
+
 ## Getting Started
 
 These instructions will get you up and running on your local machine for development and testing purposes.
