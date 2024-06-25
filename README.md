@@ -22,7 +22,7 @@ These instructions will get you up and running on your local machine for develop
 ### Building
 
 ```sh
-git clone https://github.com/yourusername/go-raft-message-queue.git
+git clone https://github.com/kavinaravind/go-raft-message-queue.git
 cd go-raft-message-queue
 make clean && make build
 ```
